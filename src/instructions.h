@@ -21,7 +21,7 @@ class IncrementHeadInstruction : public Instruction
 public:
     IncrementHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        m_interpreter->tape->incrementHead();
     }
 };
 class DecrementHeadInstruction : public Instruction
@@ -29,7 +29,7 @@ class DecrementHeadInstruction : public Instruction
 public:
     DecrementHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        m_interpreter->tape->decrementHead();
     }
 };
 class IncrementAtHeadInstruction : public Instruction
@@ -37,7 +37,7 @@ class IncrementAtHeadInstruction : public Instruction
 public:
     IncrementAtHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        m_interpreter->tape->incrementAtHead();
     }
 };
 class DecrementAtHeadInstruction : public Instruction
@@ -45,7 +45,7 @@ class DecrementAtHeadInstruction : public Instruction
 public:
     DecrementAtHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        m_interpreter->tape->decrementAtHead();
     }
 };
 class OutputHeadInstruction : public Instruction
@@ -53,7 +53,7 @@ class OutputHeadInstruction : public Instruction
 public:
     OutputHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        std::cout << m_interpreter->tape->readFromHead();
     }
 };
 class InputHeadInstruction : public Instruction
@@ -61,7 +61,9 @@ class InputHeadInstruction : public Instruction
 public:
     InputHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        char byte;
+        std::cin >> byte;
+        m_interpreter->tape->writeToHead(byte);
     }
 };
 class BeginLoopInstruction : public Instruction
@@ -69,7 +71,9 @@ class BeginLoopInstruction : public Instruction
 public:
     BeginLoopInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        if (m_interpreter->tape->readFromHead() == 0) {
+            m_interpreter->pc = m_interpreter->matching_bracket.value(m_interpreter->pc);
+        }
     }
 };
 class EndLoopInstruction : public Instruction
@@ -77,7 +81,8 @@ class EndLoopInstruction : public Instruction
 public:
     EndLoopInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-
+        // - 1 to compensate for the PC incrementing
+        m_interpreter->pc = m_interpreter->matching_bracket.value(m_interpreter->pc) - 1;
     }
 };
 

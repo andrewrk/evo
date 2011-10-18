@@ -3,6 +3,8 @@
 #include "Instruction.h"
 #include "instructions.h"
 
+#include <QStack>
+
 Interpreter::Interpreter(QByteArray program) :
     tape(NULL),
     m_program(program)
@@ -32,11 +34,23 @@ Interpreter::~Interpreter()
 
 void Interpreter::start()
 {
+    // parse for matching brackets
+    QStack<int> stack;
+    for (int i = 0; i < m_program.size(); i++) {
+        if (m_program.at(i) == '[') {
+            stack.push(i);
+        } else if (m_program.at(i) == ']') {
+            int start = stack.pop();
+            matching_bracket.insert(i, start);
+            matching_bracket.insert(start, i);
+        }
+    }
+
     tape = new Tape;
-    m_pc = 0;
-    while (m_pc < m_program.size()) {
-        Instruction * instruction = m_instructions.value(m_program.at(m_pc), m_noop);
+    pc = 0;
+    while (pc < m_program.size()) {
+        Instruction * instruction = m_instructions.value(m_program.at(pc), m_noop);
         instruction->execute();
-        m_pc++;
+        pc++;
     }
 }

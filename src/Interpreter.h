@@ -19,9 +19,14 @@ public:
 
     Tape * tape;
 
+    // current instruction pointer
+    int pc;
+
+    // maps beginning bracket pc to ending bracket pc and vice versa
+    QHash<int, int> matching_bracket;
+
 private:
     QByteArray m_program;
-    int m_pc; // current instruction pointer
 
     Instruction * m_noop;
 

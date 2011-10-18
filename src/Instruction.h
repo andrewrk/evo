@@ -10,7 +10,7 @@ public:
 
     virtual void execute() = 0;
 
-private:
+protected:
 
     Interpreter * m_interpreter;
 };
