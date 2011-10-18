@@ -1,0 +1,4 @@
+* ability to execute a brainfuck program and display the output
+* add an arbitrary brainfuck instruction
+* ability to run genetic algorithm on auto generated programs
+* more instructions

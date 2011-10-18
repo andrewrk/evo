@@ -1,0 +1,9 @@
+Easy heuristics:
+ * output "Hello, world!"
+ * Sort
+ * copy the input to the output
+ * reverse the input
+
+Difficult heuristics:
+ * print whether or not input is a prime number
+ * square the input

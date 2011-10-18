@@ -1,0 +1,36 @@
+* how to handle input and output
+    - Input in a tape, read-only
+    - Input in a tape, read-write 
+    - read-only input in one tape, read-write input in another
+    - input in a queue (read one byte at a time upon request)
+    - input in a queue and in a tape, read-write
+* data section in source
+    - data and program intermingled; different pointers are used to read 
+      instructions and data
+    - program in first half, data in second half, separate pointers
+* how many stacks/tapes/queues to have / how to use them
+    - 2 stacks/tapes/queues each, instructions to explictly use one or the
+      other, plus instructions to dynamically choose between them
+    - a way to combine arbitrary data structures
+    - 1 stack, 1 tape, 1 queue
+    - only 1 tape
+* whether it can reprogram itself
+    - yes but it also has a copy of its unedited source code
+    - yes
+    - no
+* how to loop 
+    - loop next [hardcoded number] instructions until tape value at
+      [arbitrary memory pointer] is [arbitrary condition]
+      where [hardcoded number] is 2, 4, 8, or 16
+      where [arbitrary condition] is < 128, <= 1, 0, > 0, or < 255
+    - skip next instruction if [arbitrary condition]
+    - one instruction is the loop instruction, the next character tells
+      how many instructions to loop for, the next tells the condition
+* how to prevent endless loops
+    - don't attack the problem - simply timeout programs that loop too long and
+      give them a bad score
+* instructions to do math
+    - instructions to add/subtract/multiplay/divide values on stack
+* the percentage to assign to each instruction from the language base
+* some concept of sub functions
+
