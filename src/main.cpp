@@ -1,4 +1,3 @@
-#include <iostream>
 #include "CmdLineOptions.h"
 #include "Interpreter.h"
 
@@ -17,13 +16,11 @@ int main(int argc, char *argv[])
 
     QString program_filename = args.argumentValue(0);
 
-    std::cout << program_filename.toStdString() << "\n";
-    return 0;
-
     // get program bytes
     QFile file(program_filename);
     file.open(QIODevice::ReadOnly);
     QByteArray program_bytes = file.readAll();
+    file.close();
 
     // run the interpreter on it
     Interpreter interp(program_bytes);
