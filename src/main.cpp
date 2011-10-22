@@ -69,11 +69,11 @@ int main(int argc, char *argv[])
     file.close();
 
     // configuration
-    const int generation_size = 10; // how many programs to use in each generation
-    const int surviver_count = 5; // how many programs to use to generate the next generation
+    const int generation_size = 20; // how many programs to use in each generation
+    const int surviver_count = 10; // how many programs to use to generate the next generation
     const int program_size = 200; // how many bytes of source code
-    const qint64 timeout_cycle_count = 5000; // how many instructions to run in the program before timing out
-    const float mutation_chance = .01f; // when copying a gene the chance of a mutation happening
+    const qint64 timeout_cycle_count = 4000; // how many instructions to run in the program before timing out
+    const float mutation_chance = .005f; // when copying a gene the chance of a mutation happening
 
     // generate a set of random starting programs
     QList<QByteArray> program_set;
@@ -86,6 +86,8 @@ int main(int argc, char *argv[])
     while (true) {
         generation_count++;
         qDebug() << "Generation" << generation_count;
+        float generation_score = 0;
+        float generation_max_score = 0;
 
         // evaluate the set of programs and give a score to each
         QMap<float, QByteArray> program_scores;
@@ -106,6 +108,9 @@ int main(int argc, char *argv[])
             qDebug() << "output:\n" << output;
 
             float score = assignOutputScore(goal_out_bytes, output);
+            generation_score += score;
+            if (score > generation_max_score)
+                generation_max_score = score;
 
             qDebug() << "output score: " << score;
             program_scores.insertMulti(score, program_set.at(i));
@@ -124,8 +129,7 @@ int main(int argc, char *argv[])
 
             for (int baby = 0; baby < babies_per_program; baby++) {
                 // how is babby formed?
-                QByteArray nextGenProgram(program_size, ' ');
-                program_set[next_generation_index] = nextGenProgram;
+                program_set[next_generation_index] = QByteArray(program_size, ' ');
                 for (int byte_index = 0; byte_index < it.value().size(); byte_index++) {
                     char byte = it.value().at(byte_index);
                     // mutate?
@@ -137,11 +141,16 @@ int main(int argc, char *argv[])
                     // copy gene (byte) to program
                     program_set[next_generation_index][byte_index] = byte;
                 }
+
+                qDebug() << "Generated new code for program" << next_generation_index << ":\n" << program_set[next_generation_index];
+
                 next_generation_index++;
             }
 
             survivor_index++;
         }
+
+        qDebug() << "Generation" << generation_count << "Average fitness:" << generation_score / generation_size << " Max fitness:" << generation_max_score;
     }
 }
 
