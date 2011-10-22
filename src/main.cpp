@@ -10,9 +10,12 @@
 #include <QList>
 #include <QByteArray>
 #include <QDebug>
+#include <QMap>
 
 QByteArray generateRandomProgram(int program_size);
 float assignOutputScore(QByteArray goal, QByteArray actual);
+
+char byteToChar[] = {' ', '>', '<', '+', '-', '.', ',', '[', ']'};
 
 int main(int argc, char *argv[])
 {
@@ -66,11 +69,11 @@ int main(int argc, char *argv[])
     file.close();
 
     // configuration
-    const int generation_size = 10;
-    const int program_size = 200;
-    const int parent_count = 2; // how many parents to mate when making babies
+    const int generation_size = 10; // how many programs to use in each generation
+    const int surviver_count = 5; // how many programs to use to generate the next generation
+    const int program_size = 200; // how many bytes of source code
     const qint64 timeout_cycle_count = 5000; // how many instructions to run in the program before timing out
-    const float mutation_chance = .10f; // when creating a baby the chance of a mutation happening
+    const float mutation_chance = .01f; // when copying a gene the chance of a mutation happening
 
     // generate a set of random starting programs
     QList<QByteArray> program_set;
@@ -79,33 +82,69 @@ int main(int argc, char *argv[])
         qDebug() << "generated random bf program " << i << ":\n" << program_set.last();
     }
 
-    // evaluate the set of programs and give a score to each
-    for (int i = 0; i < program_set.size(); i++) {
-        qDebug() << "evaluating program" << i;
-        Interpreter * interp = new Interpreter(program_set.at(i));
-        interp->setCaptureOutput(true);
-        interp->setInput(QByteArray());
-        interp->setMaxCycles(timeout_cycle_count);
-        interp->start();
+    int generation_count = 0;
+    while (true) {
+        generation_count++;
+        qDebug() << "Generation" << generation_count;
 
-        qDebug() << "cycle count: " << interp->cycleCount();
+        // evaluate the set of programs and give a score to each
+        QMap<float, QByteArray> program_scores;
+        for (int i = 0; i < program_set.size(); i++) {
+            qDebug() << "evaluating program" << i;
+            Interpreter * interp = new Interpreter(program_set.at(i));
+            interp->setCaptureOutput(true);
+            interp->setInput(QByteArray());
+            interp->setMaxCycles(timeout_cycle_count);
+            interp->start();
 
-        QByteArray output = interp->stdout_->readAll().toUtf8();
+            qDebug() << "cycle count: " << interp->cycleCount();
 
-        delete interp;
+            QByteArray output = interp->stdout_->readAll().toUtf8();
 
-        qDebug() << "output:\n" << output;
+            delete interp;
 
-        float score = assignOutputScore(goal_out_bytes, output);
+            qDebug() << "output:\n" << output;
 
-        qDebug() << "output score: " << score;
+            float score = assignOutputScore(goal_out_bytes, output);
+
+            qDebug() << "output score: " << score;
+            program_scores.insertMulti(score, program_set.at(i));
+
+        }
+
+        // take a subset of the top scoring programs and breed them to get a new
+        // set of programs to evaluate
+        QMapIterator<float, QByteArray> it(program_scores);
+        it.toBack();
+        int survivor_index = 0;
+        int babies_per_program = generation_size / surviver_count;
+        int next_generation_index = 0;
+        while (it.hasPrevious() && survivor_index < surviver_count) {
+            it.previous();
+
+            for (int baby = 0; baby < babies_per_program; baby++) {
+                // how is babby formed?
+                QByteArray nextGenProgram(program_size, ' ');
+                program_set[next_generation_index] = nextGenProgram;
+                for (int byte_index = 0; byte_index < it.value().size(); byte_index++) {
+                    char byte = it.value().at(byte_index);
+                    // mutate?
+                    float rand_float = rand() / (float) RAND_MAX;
+                    if (rand_float < mutation_chance) {
+                        // mutate!
+                        byte = byteToChar[std::rand() % 9];
+                    }
+                    // copy gene (byte) to program
+                    program_set[next_generation_index][byte_index] = byte;
+                }
+                next_generation_index++;
+            }
+
+            survivor_index++;
+        }
     }
-
-    // take a subset of the top scoring programs and breed them to get a new
-    // set of programs to evaluate
 }
 
-char byteToChar[] = {' ', '>', '<', '+', '-', '.', ',', '[', ']'};
 QByteArray generateRandomProgram(int program_size) {
     QByteArray program(program_size, ' ');
     for (int i = 0; i < program_size; i++) {
