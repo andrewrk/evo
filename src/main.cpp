@@ -22,6 +22,7 @@ int main(int argc, char *argv[])
     args.addPositionalArgument("program");
     args.addNamedArgument("g", "goal", QString());
     args.addNamedArgument("s", "seed", QString());
+    args.addNamedArgument("t", "testscore", QString());
     int result = args.parse();
     if (result) return result;
 
@@ -30,6 +31,12 @@ int main(int argc, char *argv[])
     unsigned int seed = seed_str.isNull() ? std::time(NULL) : seed_str.toUInt();
     std::srand(seed);
 
+    QString testscore = args.argumentValue("testscore");
+    if (!testscore.isNull()) {
+        float score = assignOutputScore(testscore.toUtf8(), args.argumentValue(0).toUtf8());
+        qDebug() << "score:" << score;
+        return 0;
+    }
 
     QString goal = args.argumentValue("goal");
     if (goal.isNull()) {
@@ -53,7 +60,8 @@ int main(int argc, char *argv[])
     // time to play with genetic algorithms!
     // goal is the goal stdout that we want to achieve.
     QFile file(goal);
-    file.open(QIODevice::ReadOnly);
+    bool file_opened = file.open(QIODevice::ReadOnly);
+    Q_ASSERT(file_opened);
     QByteArray goal_out_bytes = file.readAll();
     file.close();
 
@@ -82,7 +90,7 @@ int main(int argc, char *argv[])
 
         qDebug() << "cycle count: " << interp->cycleCount();
 
-        QByteArray output = interp->stdout_->device()->readAll();
+        QByteArray output = interp->stdout_->readAll().toUtf8();
 
         delete interp;
 
@@ -108,19 +116,15 @@ QByteArray generateRandomProgram(int program_size) {
 
 float assignOutputScore(QByteArray goal, QByteArray actual) {
     // if actual is blank, score is 0
-    if (actual.size() == 0)
-        return 0.0f;
     // if goal == actual score is perfect 1
-
-    // up to .10 for the length of the actual output being close to goal
-    // up to .40 points for right letters in the wrong place
-    // up to .50 points for how close in ascii value the letters are to the correct thing
 
     float score = 0.0f;
     float char_count = goal.size();
-    for (int i = 0; i < goal.size(); i++) {
-        float ascii_diff = 255.0f - std::abs(goal[i] - actual[i]);
-        score += (ascii_diff / 255.0f) * (1.0f / char_count);
+    for (int i = 0; i < goal.size() && i < actual.size(); i++) {
+        float ascii_diff = std::abs(goal[i] - actual[i]);
+        float delta = (1.0f - ascii_diff / 255.0f) * (1.0f / char_count);
+        //qDebug() << "character " << i << " off by " << ascii_diff << ", adding " << delta << "to score";
+        score += delta;
     }
 
     // penalty for actual being too long
