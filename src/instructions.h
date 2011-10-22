@@ -53,7 +53,8 @@ class OutputHeadInstruction : public Instruction
 public:
     OutputHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
-        std::cout << m_interpreter->tape->readFromHead();
+        *(m_interpreter->stdout_) << m_interpreter->tape->readFromHead();
+        m_interpreter->stdout_->flush();
     }
 };
 class InputHeadInstruction : public Instruction

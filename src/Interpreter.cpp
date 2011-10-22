@@ -7,6 +7,8 @@
 
 Interpreter::Interpreter(QByteArray program) :
     tape(NULL),
+    stdout_(new QTextStream(stdout)),
+    stderr_(new QTextStream(stderr)),
     m_program(program)
 {
     m_instructions.insert('>', new IncrementHeadInstruction(this));
@@ -30,6 +32,9 @@ Interpreter::~Interpreter()
         it.next();
         delete it.value();
     }
+
+    delete stdout_;
+    delete stderr_;
 }
 
 void Interpreter::start()
@@ -57,5 +62,19 @@ void Interpreter::start()
         Instruction * instruction = m_instructions.value(m_program.at(pc), m_noop);
         instruction->execute();
         pc++;
+    }
+}
+
+void Interpreter::setCaptureOutput(bool on)
+{
+    delete this->stderr_;
+    delete this->stdout_;
+
+    if (on) {
+        this->stderr_ = new QTextStream(&m_stderr_str);
+        this->stdout_ = new QTextStream(&m_stdout_str);
+    } else {
+        this->stderr_ = new QTextStream(stderr);
+        this->stdout_ = new QTextStream(stdout);
     }
 }
