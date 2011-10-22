@@ -69,7 +69,7 @@ def main():
                 with open(path, 'rb') as fd:
                     test[thing] = fd.read()
             except IOError:
-                print("Warning: missing %s" % file_title)
+                test[thing] = b''
         for thing in ('stdin', 'stdout', 'stderr'):
             get_thing(thing)
         return test
