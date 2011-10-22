@@ -1,0 +1,125 @@
+#!/usr/bin/env python3
+
+import subprocess
+import sys
+import os
+
+__version__ = '0.0'
+
+def absolute(relative_path):
+    return os.path.normpath(os.path.join(os.path.dirname(__file__), relative_path))
+
+base_test_folder = absolute(os.path.join('..', 'tst'))
+
+def print_usage():
+    context = {'exe': sys.argv[0]}
+    print("""
+Usage:
+
+%(exe)s interpreter_exe [test1 [test2 [...]]]
+""" % context)
+
+def superwalk(folder):
+    for dirpath, _dirnames, filenames in os.walk(folder):
+        for filename in filenames:
+            yield os.path.join(dirpath, filename)
+
+def run_test(interpreter_exe, test):
+    interp = subprocess.Popen([interpreter_exe, test['src']], stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = interp.communicate(test['stdin'])
+
+    results = {
+        'stdout': stdout,
+        'stderr': stderr,
+        'pass': '.', # OK
+    }
+
+    if interp.returncode != 0:
+        results['pass'] = 'E' # interpreter crashed
+
+    if test['stdout'] != stdout or test['stderr'] != stderr:
+        results['pass'] = 'F' # test fail
+
+    return results
+
+
+def main():
+    if len(sys.argv) < 2:
+        print_usage()
+        return 1
+
+    interpreter_exe = sys.argv[1]
+    
+    if len(sys.argv) > 2:
+        argument_tests = sys.argv[2:]
+    else:
+        argument_tests = None
+
+    print("Loading test suite...")
+
+    def get_test(test_name):
+        test = {
+            'name': test_name,
+            'src': os.path.join(base_test_folder, "%s.src" % test_name),
+        }
+        def get_thing(thing):
+            file_title = "%s.%s" % (test_name, thing)
+            path = os.path.join(base_test_folder, file_title)
+            try:
+                with open(path, 'rb') as fd:
+                    test[thing] = fd.read()
+            except IOError:
+                print("Warning: missing %s" % file_title)
+        for thing in ('stdin', 'stdout', 'stderr'):
+            get_thing(thing)
+        return test
+    
+    if argument_tests is None:
+        # get a list of tests to run
+        tests = superwalk(base_test_folder)
+        tests = [get_test(os.path.split(t[:-4])[1]) for t in tests if t.endswith('.src')]
+    else:
+        tests = [get_test(t) for t in argument_tests]
+
+    if len(tests) == 0:
+        print("No tests to run.")
+        return 0
+
+    # run all tests
+    fail_count = 0
+    fails = []
+    for test in tests:
+        results = run_test(interpreter_exe, test)
+
+        sys.stdout.write(results['pass'])
+        sys.stdout.flush()
+        if results['pass'] != '.':
+            fails.append((test, results))
+    print("")
+    if len(fails) == 0:
+        print("All %i tests passed." % len(tests))
+        return 0
+
+
+    print("%i passed, %i failed." % (len(tests) - len(fails), len(fails)))
+
+    sep = '=' * 80
+    print(sep)
+    for test, results in fails:
+        print("%s:" % test['name'])
+        if results['stdout'] != test['stdout']:
+            print("----------- Expected stdout: -----------")
+            print(test['stdout'].decode('utf8'))
+            print("----------- Actual   stdout: -----------")
+            print(results['stdout'].decode('utf8'))
+        if results['stderr'] != test['stderr']:
+            print("----------- Expected stderr: -----------")
+            print(test['stderr'].decode('utf8'))
+            print("----------- Actual   stderr: -----------")
+            print(results['stderr'].decode('utf8'))
+        print(sep)
+
+    return 1 # one or more tests failed
+
+if __name__ == '__main__':
+    sys.exit(main())
