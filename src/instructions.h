@@ -4,8 +4,6 @@
 #include "Instruction.h"
 #include "Interpreter.h"
 
-#include <iostream>
-
 class NoopInstruction : public Instruction
 {
 public:
@@ -63,7 +61,7 @@ public:
     InputHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
         char byte;
-        std::cin >> byte;
+        *(m_interpreter->stdin_) >> byte;
         m_interpreter->tape->writeToHead(byte);
     }
 };

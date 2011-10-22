@@ -1,2 +1,4 @@
+* timing mechanism; end execution after it is stuck in a loop for a while
+* fudge the randomness so as to not introduce as many loops?
 * ability to run genetic algorithm on auto generated programs
 * more instructions

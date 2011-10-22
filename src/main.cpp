@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
         qDebug() << "evaluating program" << i;
         Interpreter * interp = new Interpreter(program_set.at(i));
         interp->setCaptureOutput(true);
-
+        interp->setInput(QByteArray());
         interp->start();
 
         QString output = interp->stdout_->readAll();

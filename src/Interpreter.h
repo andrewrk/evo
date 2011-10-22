@@ -17,6 +17,7 @@ public:
     ~Interpreter();
 
     void setCaptureOutput(bool on);
+    void setInput(QByteArray input);
 
     void start();
 
@@ -30,12 +31,14 @@ public:
 
     QTextStream * stdout_;
     QTextStream * stderr_;
+    QTextStream * stdin_;
 
 private:
     QByteArray m_program;
     QString m_stdout_str;
     QString m_stderr_str;
 
+    QByteArray m_input;
 
     Instruction * m_noop;
 
