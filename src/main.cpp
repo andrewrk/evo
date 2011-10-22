@@ -12,6 +12,7 @@
 #include <QDebug>
 
 QByteArray generateRandomProgram(int program_size);
+float assignOutputScore(QByteArray goal, QByteArray actual);
 
 int main(int argc, char *argv[])
 {
@@ -28,6 +29,7 @@ int main(int argc, char *argv[])
     QString seed_str = args.argumentValue("seed");
     unsigned int seed = seed_str.isNull() ? std::time(NULL) : seed_str.toUInt();
     std::srand(seed);
+
 
     QString goal = args.argumentValue("goal");
     if (goal.isNull()) {
@@ -47,6 +49,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+
     // time to play with genetic algorithms!
     // goal is the goal stdout that we want to achieve.
     QFile file(goal);
@@ -59,6 +62,7 @@ int main(int argc, char *argv[])
     const int program_size = 200;
     const int parent_count = 2; // how many parents to mate when making babies
     const qint64 timeout_cycle_count = 5000; // how many instructions to run in the program before timing out
+    const float mutation_chance = .10f; // when creating a baby the chance of a mutation happening
 
     // generate a set of random starting programs
     QList<QByteArray> program_set;
@@ -78,11 +82,15 @@ int main(int argc, char *argv[])
 
         qDebug() << "cycle count: " << interp->cycleCount();
 
-        QString output = interp->stdout_->readAll();
+        QByteArray output = interp->stdout_->device()->readAll();
 
         delete interp;
 
         qDebug() << "output:\n" << output;
+
+        float score = assignOutputScore(goal_out_bytes, output);
+
+        qDebug() << "output score: " << score;
     }
 
     // take a subset of the top scoring programs and breed them to get a new
@@ -96,4 +104,36 @@ QByteArray generateRandomProgram(int program_size) {
         program[i] = byteToChar[std::rand() % 9];
     }
     return program;
+}
+
+float assignOutputScore(QByteArray goal, QByteArray actual) {
+    // if actual is blank, score is 0
+    if (actual.size() == 0)
+        return 0.0f;
+    // if goal == actual score is perfect 1
+
+    // up to .10 for the length of the actual output being close to goal
+    // up to .40 points for right letters in the wrong place
+    // up to .50 points for how close in ascii value the letters are to the correct thing
+
+    float score = 0.0f;
+    float char_count = goal.size();
+    for (int i = 0; i < goal.size(); i++) {
+        float ascii_diff = 255.0f - std::abs(goal[i] - actual[i]);
+        score += (ascii_diff / 255.0f) * (1.0f / char_count);
+    }
+
+    // penalty for actual being too long
+    float how_much_longer = actual.size() - goal.size();
+    if (how_much_longer > 0) {
+        float max_penalty = .10f;
+        float penalty = (how_much_longer / 1000.0f) * max_penalty;
+        score -= penalty;
+    }
+
+    if (score < 0.0f)
+        score = 0.0f;
+    else if (score > 1.0f)
+        score = 1.0f;
+    return score;
 }
