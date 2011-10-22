@@ -40,9 +40,14 @@ void Interpreter::start()
         if (m_program.at(i) == '[') {
             stack.push(i);
         } else if (m_program.at(i) == ']') {
-            int start = stack.pop();
-            matching_bracket.insert(i, start);
-            matching_bracket.insert(start, i);
+            if (! stack.isEmpty()) {
+                int start = stack.pop();
+                matching_bracket.insert(i, start);
+                matching_bracket.insert(start, i);
+            } else {
+                // just send control forward; ignore this close bracket
+                matching_bracket.insert(i, i+1);
+            }
         }
     }
 
