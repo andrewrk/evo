@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
     const int generation_size = 10;
     const int program_size = 200;
     const int parent_count = 2; // how many parents to mate when making babies
+    const qint64 timeout_cycle_count = 5000; // how many instructions to run in the program before timing out
 
     // generate a set of random starting programs
     QList<QByteArray> program_set;
@@ -72,7 +73,10 @@ int main(int argc, char *argv[])
         Interpreter * interp = new Interpreter(program_set.at(i));
         interp->setCaptureOutput(true);
         interp->setInput(QByteArray());
+        interp->setMaxCycles(timeout_cycle_count);
         interp->start();
+
+        qDebug() << "cycle count: " << interp->cycleCount();
 
         QString output = interp->stdout_->readAll();
 

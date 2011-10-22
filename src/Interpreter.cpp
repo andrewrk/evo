@@ -10,7 +10,9 @@ Interpreter::Interpreter(QByteArray program) :
     stdout_(new QTextStream(stdout)),
     stderr_(new QTextStream(stderr)),
     stdin_(new QTextStream(stdin)),
-    m_program(program)
+    timed_out_flag(false),
+    m_program(program),
+    m_max_cycles(-1)
 {
     m_instructions.insert('>', new IncrementHeadInstruction(this));
     m_instructions.insert('<', new DecrementHeadInstruction(this));
@@ -60,10 +62,16 @@ void Interpreter::start()
 
     tape = new Tape;
     pc = 0;
+    m_cycle_count = 0;
     while (pc < m_program.size()) {
         Instruction * instruction = m_instructions.value(m_program.at(pc), m_noop);
         instruction->execute();
         pc++;
+        m_cycle_count++;
+        if (m_max_cycles > 0 && m_cycle_count > m_max_cycles) {
+            timed_out_flag = true;
+            break;
+        }
     }
 }
 
@@ -86,4 +94,14 @@ void Interpreter::setInput(QByteArray input)
     m_input = input;
     delete stdin_;
     stdin_ = new QTextStream(&m_input);
+}
+
+void Interpreter::setMaxCycles(qint64 cycles)
+{
+    m_max_cycles = cycles;
+}
+
+qint64 Interpreter::cycleCount() const
+{
+    return m_cycle_count;
 }

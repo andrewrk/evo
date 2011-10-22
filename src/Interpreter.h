@@ -18,8 +18,11 @@ public:
 
     void setCaptureOutput(bool on);
     void setInput(QByteArray input);
+    void setMaxCycles(qint64 cycles);
 
     void start();
+
+    qint64 cycleCount() const;
 
     Tape * tape;
 
@@ -33,6 +36,9 @@ public:
     QTextStream * stderr_;
     QTextStream * stdin_;
 
+    // set to true if cycles reached max cycles
+    bool timed_out_flag;
+
 private:
     QByteArray m_program;
     QString m_stdout_str;
@@ -44,6 +50,10 @@ private:
 
     // maps instruction character to instruction object instance
     QHash<char, Instruction *> m_instructions;
+
+    // how many instructions have we processed
+    qint64 m_cycle_count;
+    qint64 m_max_cycles;
 };
 
 #endif // INTERPRETER_H
