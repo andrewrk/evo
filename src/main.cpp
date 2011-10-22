@@ -13,7 +13,7 @@
 #include <QMap>
 
 QByteArray generateRandomProgram(int program_size);
-float assignOutputScore(QByteArray goal, QByteArray actual);
+float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage);
 
 char byteToChar[] = {' ', '>', '<', '+', '-', '.', ',', '[', ']'};
 
@@ -33,10 +33,11 @@ int main(int argc, char *argv[])
     QString seed_str = args.argumentValue("seed");
     unsigned int seed = seed_str.isNull() ? std::time(NULL) : seed_str.toUInt();
     std::srand(seed);
+    qDebug() << "Seed:" << seed;
 
     QString testscore = args.argumentValue("testscore");
     if (!testscore.isNull()) {
-        float score = assignOutputScore(testscore.toUtf8(), args.argumentValue(0).toUtf8());
+        float score = assignOutputScore(testscore.toUtf8(), args.argumentValue(0).toUtf8(), 0);
         qDebug() << "score:" << score;
         return 0;
     }
@@ -72,7 +73,7 @@ int main(int argc, char *argv[])
     const int generation_size = 20; // how many programs to use in each generation
     const int surviver_count = 10; // how many programs to use to generate the next generation
     const int program_size = 200; // how many bytes of source code
-    const qint64 timeout_cycle_count = 4000; // how many instructions to run in the program before timing out
+    const qint64 timeout_cycle_count = 10000; // how many instructions to run in the program before timing out
     const float mutation_chance = .005f; // when copying a gene the chance of a mutation happening
 
     // generate a set of random starting programs
@@ -102,12 +103,13 @@ int main(int argc, char *argv[])
             qDebug() << "cycle count: " << interp->cycleCount();
 
             QByteArray output = interp->stdout_->readAll().toUtf8();
+            float cycle_usage = interp->cycleCount() / (float)timeout_cycle_count;
 
             delete interp;
 
             qDebug() << "output:\n" << output;
 
-            float score = assignOutputScore(goal_out_bytes, output);
+            float score = assignOutputScore(goal_out_bytes, output, cycle_usage);
             generation_score += score;
             if (score > generation_max_score)
                 generation_max_score = score;
@@ -162,7 +164,7 @@ QByteArray generateRandomProgram(int program_size) {
     return program;
 }
 
-float assignOutputScore(QByteArray goal, QByteArray actual) {
+float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage) {
     // if actual is blank, score is 0
     // if goal == actual score is perfect 1
 
@@ -179,9 +181,14 @@ float assignOutputScore(QByteArray goal, QByteArray actual) {
     float how_much_longer = actual.size() - goal.size();
     if (how_much_longer > 0) {
         float max_penalty = .10f;
-        float penalty = (how_much_longer / 1000.0f) * max_penalty;
+        float penalty = (how_much_longer / 100.0f) * max_penalty;
         score -= penalty;
     }
+
+    // penalty for using more cycles
+    float max_cycle_penalty = 0.10f;
+    float cycle_penalty = cycle_usage * cycle_usage * max_cycle_penalty;
+    score -= cycle_penalty;
 
     if (score < 0.0f)
         score = 0.0f;
