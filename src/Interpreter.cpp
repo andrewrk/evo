@@ -70,7 +70,7 @@ void Interpreter::start()
         instruction->execute();
         pc++;
         m_cycle_count++;
-        if (m_max_cycles > 0 && m_cycle_count > m_max_cycles) {
+        if (m_max_cycles > 0 && m_cycle_count == m_max_cycles) {
             timed_out_flag = true;
             break;
         }
@@ -95,7 +95,10 @@ void Interpreter::setInput(QByteArray input)
 {
     m_input = input;
     delete stdin_;
-    stdin_ = new QTextStream(&m_input);
+    if (input.isNull())
+        stdin_ = NULL;
+    else
+        stdin_ = new QTextStream(&m_input);
 }
 
 void Interpreter::setMaxCycles(qint64 cycles)

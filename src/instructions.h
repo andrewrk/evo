@@ -60,6 +60,8 @@ class InputHeadInstruction : public Instruction
 public:
     InputHeadInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
+        if (m_interpreter->stdin_ == NULL)
+            return;
         char byte;
         *(m_interpreter->stdin_) >> byte;
         m_interpreter->tape->writeToHead(byte);
@@ -71,7 +73,7 @@ public:
     BeginLoopInstruction(Interpreter * interpreter) : Instruction(interpreter) {}
     void execute() {
         if (m_interpreter->tape->readFromHead() == 0) {
-            m_interpreter->pc = m_interpreter->matching_bracket.value(m_interpreter->pc);
+            m_interpreter->pc = m_interpreter->matching_bracket.value(m_interpreter->pc, m_interpreter->pc);
         }
     }
 };
