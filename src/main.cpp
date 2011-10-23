@@ -14,6 +14,7 @@
 
 QByteArray generateRandomProgram(int program_size);
 float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage, int program_size);
+void makeBabies(const QByteArray &program, QList<QByteArray> &program_set, QTextStream &stdout_, int &next_generation_index, const int &babies_per_program, const float &mutation_chance);
 
 char byteToChar[] = {' ', '>', '<', '+', '-', '.', ',', '[', ']'};
 
@@ -29,10 +30,13 @@ int main(int argc, char *argv[])
     args.addNamedArgument("s", "seed", QString());
     args.addNamedArgument("t", "testscore", QString());
     args.addNamedArgument("l", "generationlimit", QString("-1"));
-    // how many programs to use in each generation
-    args.addNamedArgument("_", "gen_size", QString("60"));
-    // how many programs to use to generate the next generation
-    args.addNamedArgument("_", "surv_count", QString("30"));
+    // how many programs to use to generate the next generation - selected by best score
+    args.addNamedArgument("_", "surv_count", QString("5"));
+    // how many programs to use to generate the next generation - selected at random
+    args.addNamedArgument("_", "random_surv_count", QString("0"));
+    // how many offspring does each survining program make?
+    args.addNamedArgument("_", "offspring_count", QString("8"));
+
     // how many bytes of source code
     args.addNamedArgument("_", "init_prg_size", QString("200"));
     // how many instructions to run in the program before timing out
@@ -85,15 +89,22 @@ int main(int argc, char *argv[])
     file.close();
 
     // configuration
-    const int generation_size = args.argumentValue("gen_size").toInt();
     const int surviver_count = args.argumentValue("surv_count").toInt();
+    const int random_surviver_count = args.argumentValue("random_surv_count").toInt();
+    const int babies_per_program = args.argumentValue("offspring_count").toInt();
+
     const int init_program_size = args.argumentValue("init_prg_size").toInt();
     const qint64 timeout_cycle_count = args.argumentValue("cycle_count").toInt();
     const float mutation_chance = args.argumentValue("mut_chance").toFloat();
 
+
+    const int generation_size = babies_per_program * (surviver_count + random_surviver_count);
+
     stdout_ << "(C) seed=" << seed
             << " gen_size=" << generation_size
             << " surv_count=" << surviver_count
+            << " random_surv_count=" << random_surviver_count
+            << " offspring_count=" << babies_per_program
             << " init_prg_size=" << init_program_size
             << " cycle_count=" << timeout_cycle_count
             << " mut_chance=" << mutation_chance
@@ -163,45 +174,21 @@ int main(int argc, char *argv[])
         QMapIterator<float, QByteArray> it(program_scores);
         it.toBack();
         int survivor_index = 0;
-        int babies_per_program = generation_size / surviver_count;
         int next_generation_index = 0;
         while (it.hasPrevious() && survivor_index < surviver_count) {
             it.previous();
 
-            for (int baby = 0; baby < babies_per_program; baby++) {
-                // how is babby formed?
-                program_set[next_generation_index] = QByteArray();
-                for (int byte_index = 0; byte_index < it.value().size(); byte_index++) {
-                    char byte = it.value().at(byte_index);
-                    // mutate?
-                    float rand_float = rand() / (float) RAND_MAX;
-                    if (rand_float < mutation_chance) {
-                        // mutate!
-                        int mutate_action = rand() % 3;
-                        if (mutate_action == 0) {
-                            // change a byte randomly
-                            program_set[next_generation_index].append(byteToChar[std::rand() % 9]);
-                        } else if (mutate_action == 1) {
-                            // insert a random byte
-                            program_set[next_generation_index].append(byteToChar[std::rand() % 9]);
-                            program_set[next_generation_index].append(byte);
-
-                        } else {
-                            // don't copy this byte
-                        }
-                    } else {
-                        // copy gene (byte) to program. no errors
-                        program_set[next_generation_index].append(byte);
-                    }
-                }
-
-                stdout_ << "Generated new code for program " << next_generation_index
-                        << ":\n" << program_set[next_generation_index] << "\n";
-
-                next_generation_index++;
-            }
+            makeBabies(it.value(), program_set, stdout_, next_generation_index,
+                       babies_per_program, mutation_chance);
 
             survivor_index++;
+        }
+
+        // take some random programs and breed them to get a new set of programs to evaluate
+        for (int i = 0; i < random_surviver_count; i++) {
+            makeBabies(program_set.at(rand() % program_set.size()), program_set,
+                       stdout_, next_generation_index, babies_per_program,
+                       mutation_chance);
         }
 
         stdout_ << "Best output so far: '" << best_output << "'\n";
@@ -221,6 +208,44 @@ QByteArray generateRandomProgram(int program_size) {
         program[i] = byteToChar[std::rand() % 9];
     }
     return program;
+}
+
+void makeBabies(const QByteArray & program, QList<QByteArray> & program_set,
+                QTextStream & stdout_, int & next_generation_index,
+                const int & babies_per_program, const float & mutation_chance)
+{
+    for (int baby = 0; baby < babies_per_program; baby++) {
+        // how is babby formed?
+        program_set[next_generation_index] = QByteArray();
+        for (int byte_index = 0; byte_index < program.size(); byte_index++) {
+            char byte = program.at(byte_index);
+            // mutate?
+            float rand_float = rand() / (float) RAND_MAX;
+            if (rand_float < mutation_chance) {
+                // mutate!
+                int mutate_action = rand() % 3;
+                if (mutate_action == 0) {
+                    // change a byte randomly
+                    program_set[next_generation_index].append(byteToChar[std::rand() % 9]);
+                } else if (mutate_action == 1) {
+                    // insert a random byte
+                    program_set[next_generation_index].append(byteToChar[std::rand() % 9]);
+                    program_set[next_generation_index].append(byte);
+
+                } else {
+                    // don't copy this byte
+                }
+            } else {
+                // copy gene (byte) to program. no errors
+                program_set[next_generation_index].append(byte);
+            }
+        }
+
+        stdout_ << "Generated new code for program " << next_generation_index
+                << ":\n" << program_set[next_generation_index] << "\n";
+
+        next_generation_index++;
+    }
 }
 
 float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage, int program_size) {

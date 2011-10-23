@@ -75,8 +75,10 @@ else:
     html = open("out/out.html", "a")
     html.write("""
 <tr>
-    <td>%(gen_size)s</td>
+    <td>%(seed)s</td>
     <td>%(surv_count)s</td>
+    <td>%(random_surv_count)s</td>
+    <td>%(offspring_count)s</td>
     <td>%(init_prg_size)s</td>
     <td>%(cycle_count)s</td>
     <td>%(mut_chance)s</td>

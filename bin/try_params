@@ -15,10 +15,12 @@ def combinations(list_of_choices):
     return combos
 
 combos = combinations([
-    [(1,5), (5, 20), (5, 40), (5, 60), (10, 80)],
-    [300, 999],
-    [500, 1000],
-    [.001, .002, .006, .01, .02, .06],
+    [1, 2, 3], # seed
+    # surv_count, random_surv_count, offspring_count
+    [(5, 0, 12), (5, 5, 10), (2, 1, 12), (10, 1, 16)], 
+    [300, 999], # init_prg_size
+    [800], # cycle_limit
+    [.001, .002, .006, .01], # mut_chance
 ])
 
 import random
@@ -33,11 +35,12 @@ html.write("""
 <title>Evo Results</title>
 </head>
 <body>
-<p>Seed: 2</p>
 <table border="1">
 <tr>
-    <th>gen_size</th>
+    <th>seed</th>
     <th>surv_count</th>
+    <th>random_surv_count</th>
+    <th>offspring_count</th>
     <th>init_prg_size</th>
     <th>cycle_count</th>
     <th>mut_chance</th>
@@ -51,13 +54,16 @@ html.write("""
 html.close()
 
 print("%i combinations" % len(combos))
-for (surv_count, gen_size), init_prg_size, cycle_count, mut_chance in combos:
+count = 0
+for seed, (surv_count, random_surv_count, offspring_count), init_prg_size, cycle_count, mut_chance in combos:
+    count += 1
     args = (
         ('goal', 'tst/hello.stdout'),
-        ('seed', '2'),
         ('generationlimit', '9999'),
-        ('gen_size', gen_size),
+        ('seed', seed),
         ('surv_count', surv_count),
+        ('random_surv_count', random_surv_count),
+        ('offspring_count', offspring_count),
         ('init_prg_size', init_prg_size),
         ('cycle_count', cycle_count),
         ('mut_chance', mut_chance),
@@ -67,6 +73,7 @@ for (surv_count, gen_size), init_prg_size, cycle_count, mut_chance in combos:
     evocmd = "build/debug/evo %s hi >log" % argstr
     plotcmd = "bin/plot log"
 
+    print("%i out of %i" % (count, len(combos)))
     print(evocmd)
     os.system(evocmd)
     print(plotcmd)
