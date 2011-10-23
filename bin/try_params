@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+import copy
+import os
+
+def combinations(list_of_choices):
+    combos = [[choice] for choice in list_of_choices[0]]
+    for choices in list_of_choices[1:]:
+        new_combos = []
+        for choice in choices:
+            new_combos += copy.deepcopy(combos)
+            for i in range(len(combos)):
+                new_combos[-i-1].append(choice)
+    
+        combos = new_combos
+    return combos
+
+combos = combinations([
+    [(1,5), (5, 20), (5, 40), (30, 60), (20, 60), (5, 60)],
+    [50, 300, 999],
+    [500, 4000, 9000],
+    [.001, .01, .02, .06, .10],
+])
+
+for (surv_count, gen_size), init_prg_size, cycle_count, mut_chance in combos:
+    args = (
+        ('goal', 'tst/hello.stdout'),
+        ('seed', '2'),
+        ('generationlimit', '9999'),
+        ('gen_size', gen_size),
+        ('surv_count', surv_count),
+        ('init_prg_size', init_prg_size),
+        ('cycle_count', cycle_count),
+        ('mut_chance', mut_chance),
+    )
+    argstr = ' '.join(['--%s %s' % arg for arg in args])
+
+    evocmd = "build/debug/evo %s hi >log" % argstr
+    plotcmd = "bin/plot"
+
+    print(evocmd)
+    os.system(evocmd)
+    print(plotcmd)
+    os.system(plotcmd)
+

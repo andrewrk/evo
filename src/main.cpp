@@ -29,6 +29,18 @@ int main(int argc, char *argv[])
     args.addNamedArgument("s", "seed", QString());
     args.addNamedArgument("t", "testscore", QString());
     args.addNamedArgument("l", "generationlimit", QString("-1"));
+    // how many programs to use in each generation
+    args.addNamedArgument("_", "gen_size", QString("60"));
+    // how many programs to use to generate the next generation
+    args.addNamedArgument("_", "surv_count", QString("30"));
+    // how many bytes of source code
+    args.addNamedArgument("_", "init_prg_size", QString("200"));
+    // how many instructions to run in the program before timing out
+    args.addNamedArgument("_", "cycle_count", QString("4000"));
+    // when copying a gene the chance of a mutation happening
+    args.addNamedArgument("_", "mut_chance", QString(".014"));
+
+
     int result = args.parse();
     if (result) return result;
 
@@ -73,11 +85,11 @@ int main(int argc, char *argv[])
     file.close();
 
     // configuration
-    const int generation_size = 60; // how many programs to use in each generation
-    const int surviver_count = 30; // how many programs to use to generate the next generation
-    const int init_program_size = 200; // how many bytes of source code
-    const qint64 timeout_cycle_count = 8000; // how many instructions to run in the program before timing out
-    const float mutation_chance = .014f; // when copying a gene the chance of a mutation happening
+    const int generation_size = args.argumentValue("gen_size").toInt();
+    const int surviver_count = args.argumentValue("surv_count").toInt();
+    const int init_program_size = args.argumentValue("init_prg_size").toInt();
+    const qint64 timeout_cycle_count = args.argumentValue("cycle_count").toInt();
+    const float mutation_chance = args.argumentValue("mut_chance").toFloat();
 
     stdout_ << "(C) seed=" << seed
             << " gen_size=" << generation_size
