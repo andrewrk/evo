@@ -15,12 +15,42 @@ def combinations(list_of_choices):
     return combos
 
 combos = combinations([
-    [(1,5), (5, 20), (5, 40), (30, 60), (20, 60), (5, 60)],
-    [50, 300, 999],
-    [500, 4000, 9000],
-    [.001, .01, .02, .06, .10],
+    [(1,5), (5, 20), (5, 40), (5, 60), (10, 80)],
+    [300, 999],
+    [500, 1000],
+    [.001, .002, .006, .01, .02, .06],
 ])
 
+import random
+random.shuffle(combos)
+
+
+html = open("out/out.html", "w")
+html.write("""
+<!doctype html>
+<html>
+<head>
+<title>Evo Results</title>
+</head>
+<body>
+<p>Seed: 2</p>
+<table border="1">
+<tr>
+    <th>gen_size</th>
+    <th>surv_count</th>
+    <th>init_prg_size</th>
+    <th>cycle_count</th>
+    <th>mut_chance</th>
+    <th>Graph</th>
+    <th>Best program source</th>
+    <th>Best program output</th>
+    <th>Best program score</th>
+    <th>Best program cycle count</th>
+</tr>
+""")
+html.close()
+
+print("%i combinations" % len(combos))
 for (surv_count, gen_size), init_prg_size, cycle_count, mut_chance in combos:
     args = (
         ('goal', 'tst/hello.stdout'),
@@ -35,10 +65,18 @@ for (surv_count, gen_size), init_prg_size, cycle_count, mut_chance in combos:
     argstr = ' '.join(['--%s %s' % arg for arg in args])
 
     evocmd = "build/debug/evo %s hi >log" % argstr
-    plotcmd = "bin/plot"
+    plotcmd = "bin/plot log"
 
     print(evocmd)
     os.system(evocmd)
     print(plotcmd)
     os.system(plotcmd)
 
+
+html = open("out/out.html", "a")
+html.write("""
+</table>
+</body>
+</html>
+""")
+html.close()

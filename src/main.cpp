@@ -13,7 +13,7 @@
 #include <QTextStream>
 
 QByteArray generateRandomProgram(int program_size);
-float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage);
+float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage, int program_size);
 
 char byteToChar[] = {' ', '>', '<', '+', '-', '.', ',', '[', ']'};
 
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 
     QString testscore = args.argumentValue("testscore");
     if (!testscore.isNull()) {
-        float score = assignOutputScore(testscore.toUtf8(), args.argumentValue(0).toUtf8(), 0);
+        float score = assignOutputScore(testscore.toUtf8(), args.argumentValue(0).toUtf8(), 0, 0);
         stdout_ << "score: " << score << "\n"; stdout_.flush();
         return 0;
     }
@@ -93,10 +93,10 @@ int main(int argc, char *argv[])
 
     stdout_ << "(C) seed=" << seed
             << " gen_size=" << generation_size
-            << " surviver_count=" << surviver_count
+            << " surv_count=" << surviver_count
             << " init_prg_size=" << init_program_size
-            << " timeout_cycle_count=" << timeout_cycle_count
-            << " mutation_chance=" << mutation_chance
+            << " cycle_count=" << timeout_cycle_count
+            << " mut_chance=" << mutation_chance
             << "\n";
     stdout_.flush();
 
@@ -107,6 +107,11 @@ int main(int argc, char *argv[])
         stdout_ << "generated random bf program " << i << ":\n" << program_set.last() << "\n";
         stdout_.flush();
     }
+
+    float best_score = 0;
+    QByteArray best_src;
+    QByteArray best_output;
+    int best_cycle_count;
 
     int generation_count = 0;
     while (generation_count != generation_limit) {
@@ -132,14 +137,21 @@ int main(int argc, char *argv[])
             QByteArray output = interp->stdout_->readAll().toUtf8();
             float cycle_usage = interp->cycleCount() / (float)timeout_cycle_count;
 
-            delete interp;
 
             stdout_ << "output:\n" << output << "\n";
 
-            float score = assignOutputScore(goal_out_bytes, output, cycle_usage);
+            float score = assignOutputScore(goal_out_bytes, output, cycle_usage, program_set.at(i).size());
             generation_score += score;
             if (score > generation_max_score)
                 generation_max_score = score;
+            if (score > best_score) {
+                best_score = score;
+                best_output = output;
+                best_src = program_set.at(i);
+                best_cycle_count = interp->cycleCount();
+            }
+
+            delete interp;
 
             stdout_ << "output score: " << score << "\n";
             program_scores.insertMulti(score, program_set.at(i));
@@ -192,10 +204,15 @@ int main(int argc, char *argv[])
             survivor_index++;
         }
 
+        stdout_ << "Best output so far: '" << best_output << "'\n";
         stdout_ << "(S) Generation=" << generation_count << " avg_score=" << generation_score / generation_size
                 << " max_score=" << generation_max_score << " avg_prg_size=" << generation_program_size / generation_size << "\n";
         stdout_.flush();
     }
+    stdout_ << "(B) best_score=" << best_score
+            << "\tbest_output=" << best_output.replace('\t', '~') << "\tbest_src=" << best_src
+            << "\tbest_cycle_count=" << best_cycle_count << "</done>\n";
+    stdout_.flush();
 }
 
 QByteArray generateRandomProgram(int program_size) {
@@ -206,7 +223,7 @@ QByteArray generateRandomProgram(int program_size) {
     return program;
 }
 
-float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage) {
+float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage, int program_size) {
     // if actual is blank, score is 0
     // if goal == actual score is perfect 1
 
@@ -228,9 +245,14 @@ float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage) {
     }
 
     // penalty for using more cycles
-    float max_cycle_penalty = 0.10f;
+    float max_cycle_penalty = 0.05f;
     float cycle_penalty = cycle_usage * cycle_usage * max_cycle_penalty;
     score -= cycle_penalty;
+
+    // slight penalty for larger code
+    float max_size_penalty = 0.025f;
+    float size_penalty = program_size / 1000.0f * max_size_penalty;
+    score -= size_penalty;
 
     if (score < 0.0f)
         score = 0.0f;

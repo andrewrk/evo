@@ -1,16 +1,40 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plot
 
+import sys
+
+logfile = sys.argv[1]
+show = len(sys.argv) > 2 and sys.argv[2] == 'show'
+
+def dict_for_line(line):
+    return dict([part.split('=', 1) for part in line[4:].split()])
+def dict_for_line_tab(line):
+    return dict([part.split('=', 1) for part in line[4:].split('\t')])
+
+best = {
+    'best_src': '[program terminated early]',
+    'best_score': '[program terminated early]',
+    'best_output': '[program terminated early]',
+    'best_cycle_count': '[program terminated early]',
+}
+
 rows = []
-with open("log", 'r') as fd:
+with open(logfile, 'r') as fd:
     first_line = fd.readline()
     while True:
         line = fd.readline()
         if len(line) == 0:
             break
         if line.startswith("(S) "):
-            d = dict([part.split('=') for part in line[4:].split()])
+            d = dict_for_line(line)
             rows.append(d)
+        elif line.startswith("(B) "):
+            while line.count("</done>") == 0:
+                newline = fd.readline()
+                if len(newline) == 0:
+                    break
+                line += newline
+            best = dict_for_line_tab(line.replace("</done>",""))
 
 def get_list(name, legend=True):
     if legend:
@@ -21,8 +45,8 @@ score = plot.subplot(211)
 legend_list = []
 generations = get_list('Generation', legend=False)
 plot.plot(
-    generations, get_list('max_score'), 'r',
     generations, get_list('avg_score'), 'g',
+    generations, get_list('max_score'), 'r',
 )
 plot.xlabel('Generation')
 plot.ylabel("Score")
@@ -38,4 +62,31 @@ plot.xlabel('Generation')
 plot.ylabel("bytes")
 size.legend(legend_list, 'best')
 
-plot.savefig("out/%s.png" % first_line.strip())
+if show:
+    plot.show()
+else:
+    pngfile = "%s.png" % first_line.strip()
+    plot.savefig("out/%s" % pngfile)
+
+    context = dict_for_line(first_line)
+    context['pngfile'] = pngfile
+    context.update(best)
+
+    html = open("out/out.html", "a")
+    html.write("""
+<tr>
+    <td>%(gen_size)s</td>
+    <td>%(surv_count)s</td>
+    <td>%(init_prg_size)s</td>
+    <td>%(cycle_count)s</td>
+    <td>%(mut_chance)s</td>
+    <td>
+        <img alt="" src="%(pngfile)s" />
+    </td>
+    <td><pre>%(best_src)s</pre></td>
+    <td><pre>%(best_output)s</pre></td>
+    <td>%(best_score)s</td>
+    <td>%(best_cycle_count)s</td>
+</tr>
+""" % context)
+    html.close()
