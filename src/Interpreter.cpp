@@ -39,6 +39,8 @@ Interpreter::~Interpreter()
     delete stdout_;
     delete stderr_;
     delete stdin_;
+
+    delete m_noop;
 }
 
 void Interpreter::start()

@@ -1,0 +1,41 @@
+#!/usr/bin/env python
+import matplotlib.pyplot as plot
+
+rows = []
+with open("log", 'r') as fd:
+    first_line = fd.readline()
+    while True:
+        line = fd.readline()
+        if len(line) == 0:
+            break
+        if line.startswith("(S) "):
+            d = dict([part.split('=') for part in line[4:].split()])
+            rows.append(d)
+
+def get_list(name, legend=True):
+    if legend:
+        legend_list.append(name)
+    return [d[name] for d in rows]
+
+score = plot.subplot(211)
+legend_list = []
+generations = get_list('Generation', legend=False)
+plot.plot(
+    generations, get_list('max_score'), 'r',
+    generations, get_list('avg_score'), 'g',
+)
+plot.xlabel('Generation')
+plot.ylabel("Score")
+score.legend(legend_list, "best")
+
+size = plot.subplot(212, sharex=score)
+legend_list = []
+generations = get_list('Generation', legend=False)
+plot.plot(
+    generations, get_list('avg_prg_size'), 'b',
+)
+plot.xlabel('Generation')
+plot.ylabel("bytes")
+size.legend(legend_list, 'best')
+
+plot.savefig("out/%s.png" % first_line.strip())

@@ -9,8 +9,8 @@
 #include <QFile>
 #include <QList>
 #include <QByteArray>
-#include <QDebug>
 #include <QMap>
+#include <QTextStream>
 
 QByteArray generateRandomProgram(int program_size);
 float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage);
@@ -21,11 +21,14 @@ int main(int argc, char *argv[])
 {
     QCoreApplication a(argc, argv);
 
+    QTextStream stdout_(stdout);
+
     CmdLineOptions args;
     args.addPositionalArgument("program");
     args.addNamedArgument("g", "goal", QString());
     args.addNamedArgument("s", "seed", QString());
     args.addNamedArgument("t", "testscore", QString());
+    args.addNamedArgument("l", "generationlimit", QString("-1"));
     int result = args.parse();
     if (result) return result;
 
@@ -33,12 +36,11 @@ int main(int argc, char *argv[])
     QString seed_str = args.argumentValue("seed");
     unsigned int seed = seed_str.isNull() ? std::time(NULL) : seed_str.toUInt();
     std::srand(seed);
-    qDebug() << "Seed:" << seed;
 
     QString testscore = args.argumentValue("testscore");
     if (!testscore.isNull()) {
         float score = assignOutputScore(testscore.toUtf8(), args.argumentValue(0).toUtf8(), 0);
-        qDebug() << "score:" << score;
+        stdout_ << "score: " << score << "\n"; stdout_.flush();
         return 0;
     }
 
@@ -60,6 +62,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    int generation_limit = args.argumentValue("generationlimit").toInt();
 
     // time to play with genetic algorithms!
     // goal is the goal stdout that we want to achieve.
@@ -70,51 +73,63 @@ int main(int argc, char *argv[])
     file.close();
 
     // configuration
-    const int generation_size = 20; // how many programs to use in each generation
-    const int surviver_count = 10; // how many programs to use to generate the next generation
-    const int program_size = 200; // how many bytes of source code
-    const qint64 timeout_cycle_count = 10000; // how many instructions to run in the program before timing out
-    const float mutation_chance = .005f; // when copying a gene the chance of a mutation happening
+    const int generation_size = 60; // how many programs to use in each generation
+    const int surviver_count = 30; // how many programs to use to generate the next generation
+    const int init_program_size = 200; // how many bytes of source code
+    const qint64 timeout_cycle_count = 8000; // how many instructions to run in the program before timing out
+    const float mutation_chance = .014f; // when copying a gene the chance of a mutation happening
+
+    stdout_ << "(C) seed=" << seed
+            << " gen_size=" << generation_size
+            << " surviver_count=" << surviver_count
+            << " init_prg_size=" << init_program_size
+            << " timeout_cycle_count=" << timeout_cycle_count
+            << " mutation_chance=" << mutation_chance
+            << "\n";
+    stdout_.flush();
 
     // generate a set of random starting programs
     QList<QByteArray> program_set;
     for (int i = 0; i < generation_size; i++) {
-        program_set.append(generateRandomProgram(program_size));
-        qDebug() << "generated random bf program " << i << ":\n" << program_set.last();
+        program_set.append(generateRandomProgram(init_program_size));
+        stdout_ << "generated random bf program " << i << ":\n" << program_set.last() << "\n";
+        stdout_.flush();
     }
 
     int generation_count = 0;
-    while (true) {
+    while (generation_count != generation_limit) {
         generation_count++;
-        qDebug() << "Generation" << generation_count;
+        stdout_ << "Generation " << generation_count << "\n";
         float generation_score = 0;
         float generation_max_score = 0;
+        float generation_program_size = 0;
 
         // evaluate the set of programs and give a score to each
         QMap<float, QByteArray> program_scores;
         for (int i = 0; i < program_set.size(); i++) {
-            qDebug() << "evaluating program" << i;
+            generation_program_size += program_set.at(i).size();
+            stdout_ << "evaluating program " << i << "\n";
             Interpreter * interp = new Interpreter(program_set.at(i));
             interp->setCaptureOutput(true);
             interp->setInput(QByteArray());
             interp->setMaxCycles(timeout_cycle_count);
             interp->start();
 
-            qDebug() << "cycle count: " << interp->cycleCount();
+            stdout_ << "cycle count: " << interp->cycleCount() << "\n";
 
             QByteArray output = interp->stdout_->readAll().toUtf8();
             float cycle_usage = interp->cycleCount() / (float)timeout_cycle_count;
 
             delete interp;
 
-            qDebug() << "output:\n" << output;
+            stdout_ << "output:\n" << output << "\n";
 
             float score = assignOutputScore(goal_out_bytes, output, cycle_usage);
             generation_score += score;
             if (score > generation_max_score)
                 generation_max_score = score;
 
-            qDebug() << "output score: " << score;
+            stdout_ << "output score: " << score << "\n";
             program_scores.insertMulti(score, program_set.at(i));
 
         }
@@ -131,20 +146,33 @@ int main(int argc, char *argv[])
 
             for (int baby = 0; baby < babies_per_program; baby++) {
                 // how is babby formed?
-                program_set[next_generation_index] = QByteArray(program_size, ' ');
+                program_set[next_generation_index] = QByteArray();
                 for (int byte_index = 0; byte_index < it.value().size(); byte_index++) {
                     char byte = it.value().at(byte_index);
                     // mutate?
                     float rand_float = rand() / (float) RAND_MAX;
                     if (rand_float < mutation_chance) {
                         // mutate!
-                        byte = byteToChar[std::rand() % 9];
+                        int mutate_action = rand() % 3;
+                        if (mutate_action == 0) {
+                            // change a byte randomly
+                            program_set[next_generation_index].append(byteToChar[std::rand() % 9]);
+                        } else if (mutate_action == 1) {
+                            // insert a random byte
+                            program_set[next_generation_index].append(byteToChar[std::rand() % 9]);
+                            program_set[next_generation_index].append(byte);
+
+                        } else {
+                            // don't copy this byte
+                        }
+                    } else {
+                        // copy gene (byte) to program. no errors
+                        program_set[next_generation_index].append(byte);
                     }
-                    // copy gene (byte) to program
-                    program_set[next_generation_index][byte_index] = byte;
                 }
 
-                qDebug() << "Generated new code for program" << next_generation_index << ":\n" << program_set[next_generation_index];
+                stdout_ << "Generated new code for program " << next_generation_index
+                        << ":\n" << program_set[next_generation_index] << "\n";
 
                 next_generation_index++;
             }
@@ -152,7 +180,9 @@ int main(int argc, char *argv[])
             survivor_index++;
         }
 
-        qDebug() << "Generation" << generation_count << "Average fitness:" << generation_score / generation_size << " Max fitness:" << generation_max_score;
+        stdout_ << "(S) Generation=" << generation_count << " avg_score=" << generation_score / generation_size
+                << " max_score=" << generation_max_score << " avg_prg_size=" << generation_program_size / generation_size << "\n";
+        stdout_.flush();
     }
 }
 
@@ -173,7 +203,7 @@ float assignOutputScore(QByteArray goal, QByteArray actual, float cycle_usage) {
     for (int i = 0; i < goal.size() && i < actual.size(); i++) {
         float ascii_diff = std::abs(goal[i] - actual[i]);
         float delta = (1.0f - ascii_diff / 255.0f) * (1.0f / char_count);
-        //qDebug() << "character " << i << " off by " << ascii_diff << ", adding " << delta << "to score";
+        //stdout_ << "character " << i << " off by " << ascii_diff << ", adding " << delta << "to score";
         score += delta;
     }
 
