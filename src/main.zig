@@ -271,8 +271,23 @@ fn BrainFuckInterpreter(
 }
 
 test "interpreter" {
-    const src = "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.";
+    {
+        const src = "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.";
+        try testBF(src, "", "Hello World!\n");
+    }
+    {
+        // bad bracket
+        const src = "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.++]]+.----]--.--------.>+.>.]";
+        try testBF(src, "", "Hello World!\n");
+    }
+    {
+        // extra begin bracket
+        const src = "++[++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.";
+        try testBF(src, "", "Hello World!\n");
+    }
+}
 
+fn testBF(src: []const u8, input: []const u8, expected_output: []const u8) !void {
     const Context = struct {
         input: []const u8,
         output: std.ArrayList(u8),
@@ -293,7 +308,7 @@ test "interpreter" {
         }
     };
     var context: Context = .{
-        .input = "",
+        .input = input,
         .next = 0,
         .output = std.ArrayList(u8).init(std.testing.allocator),
     };
@@ -308,7 +323,7 @@ test "interpreter" {
 
     bf.start(&context);
 
-    std.testing.expect(mem.eql(u8, context.output.span(), "Hello World!\n"));
+    std.testing.expect(mem.eql(u8, context.output.span(), expected_output));
 }
 
 fn assignOutputScore(goal: []const u8, actual: []const u8, cycle_usage: f32, program_size: usize) f32 {
