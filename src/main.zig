@@ -1,6 +1,22 @@
 const std = @import("std");
 const mem = std.mem;
 
+const Prg = struct {
+    buffer: [max_bytes]u8,
+    len: usize,
+
+    const max_bytes = 32 * 1024;
+
+    fn span(self: *Prg) []u8 {
+        return self.buffer[0..self.len];
+    }
+
+    fn append(self: *Prg, byte: u8) void {
+        self.buffer[self.len] = byte;
+        self.len += 1;
+    }
+};
+
 pub fn main() anyerror!void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = &arena.allocator;
@@ -43,12 +59,11 @@ pub fn main() anyerror!void {
         const program_filename = positional orelse return errorUsage("expected parameter\n", .{});
 
         // get program bytes
-        const max_bytes = 32 * 1024;
-        const program_bytes = try std.fs.cwd().readFileAlloc(allocator, program_filename, max_bytes);
+        const program_bytes = try std.fs.cwd().readFileAlloc(allocator, program_filename, Prg.max_bytes);
         defer allocator.free(program_bytes);
 
-        var bf = BrainFuckInterpreter(void, readStdIn, writeStdOut).init(allocator);
-        try bf.reset(program_bytes, std.math.maxInt(usize));
+        var bf: BrainFuckInterpreter(void, readStdIn, writeStdOut) = undefined;
+        bf.reset(program_bytes, std.math.maxInt(usize));
         bf.start({});
 
         return;
@@ -69,15 +84,12 @@ pub fn main() anyerror!void {
     const generation_size = babies_per_program * (surviver_count + random_surviver_count);
 
     // generate a set of random starting programs
-    const program_set_a = try allocator.alloc(std.ArrayList(u8), generation_size);
-    const program_set_b = try allocator.alloc(std.ArrayList(u8), generation_size);
+    const program_set_a = try allocator.alloc(Prg, generation_size);
+    const program_set_b = try allocator.alloc(Prg, generation_size);
     {
         var i: usize = 0;
         while (i < generation_size) : (i += 1) {
-            program_set_a[i] = std.ArrayList(u8).init(allocator);
-            program_set_b[i] = std.ArrayList(u8).init(allocator);
-
-            try program_set_a[i].resize(init_program_size);
+            program_set_a[i].len = init_program_size;
             generateRandomProgram(program_set_a[i].span(), rng);
             std.debug.warn("generated random bf program {}:\n{}\n", .{ i, program_set_a[i].span() });
         }
@@ -86,7 +98,7 @@ pub fn main() anyerror!void {
     var other_program_set = &program_set_b;
 
     var best_score: f32 = 0.0;
-    var best_src = std.ArrayList(u8).init(allocator);
+    var best_src: Prg = undefined;
     var best_output = std.ArrayList(u8).init(allocator);
     var best_cycle_count: usize = undefined;
 
@@ -102,8 +114,7 @@ pub fn main() anyerror!void {
     };
 
     const BF = BrainFuckInterpreter(*std.ArrayList(u8), S.inFn, S.outFn);
-    var interp = BF.init(allocator);
-    defer interp.deinit();
+    var interp: BF = undefined;
 
     const Score = struct {
         scalar: f32,
@@ -120,7 +131,7 @@ pub fn main() anyerror!void {
     var generation_count: usize = 0;
     while (generation_count < generation_limit) {
         generation_count += 1;
-        std.debug.warn("Generation {}\n", .{generation_count});
+        //std.debug.warn("Generation {}\n", .{generation_count});
         var generation_score: f32 = 0;
         var generation_max_score: f32 = 0;
         var generation_program_size: usize = 0;
@@ -128,19 +139,19 @@ pub fn main() anyerror!void {
         program_scores.shrink(0);
 
         // evaluate the set of programs and give a score to each
-        for (program_set.*) |this_prg, i| {
+        for (program_set.*) |*this_prg, i| {
             generation_program_size += this_prg.len;
-            std.debug.warn("evaluating program {}\n", .{i});
-            try interp.reset(this_prg.span(), timeout_cycle_count);
+            //std.debug.warn("evaluating program {}\n", .{i});
+            interp.reset(this_prg.span(), timeout_cycle_count);
             bf_out.shrink(0);
             interp.start(&bf_out);
 
-            std.debug.warn("cycle count: {}\n", .{interp.cycle_count});
+            //std.debug.warn("cycle count: {}\n", .{interp.cycle_count});
 
             const output = bf_out.toSliceConst();
             const cycle_usage = @intToFloat(f32, interp.cycle_count) / @intToFloat(f32, timeout_cycle_count);
 
-            std.debug.warn("output:\n{}\n", .{output});
+            //std.debug.warn("output:\n{}\n", .{output});
 
             const score = assignOutputScore(goal_out_bytes, output, cycle_usage, this_prg.len);
             generation_score += score;
@@ -152,19 +163,28 @@ pub fn main() anyerror!void {
                 best_output.shrink(0);
                 try best_output.appendSlice(output);
 
-                best_src.shrink(0);
-                try best_src.appendSlice(this_prg.span());
-
+                best_src = this_prg.*;
                 best_cycle_count = interp.cycle_count;
+
+                std.debug.warn("new best. cycle_count={} score={}\noutput:\n{}\nsrc:\n{}\n", .{
+                    best_cycle_count,
+                    score,
+                    best_output.span(),
+                    best_src.span(),
+                });
             }
 
-            std.debug.warn("output score: {}\n", .{score});
+            //std.debug.warn("output score: {}\n", .{score});
             try program_scores.append(.{ .scalar = score, .src = this_prg.span() });
         }
 
         // take a subset of the top scoring programs and breed them to get a new
         // set of programs to evaluate
         std.sort.sort(Score, program_scores.span(), Score.greaterThanOrEql);
+        //std.debug.warn("program scores:\n", .{});
+        //for (program_scores.span()) |score, i| {
+        //    std.debug.warn("{} = {}\n", .{i, score.scalar});
+        //}
 
         var survivor_index: usize = 0;
         var next_generation_index: usize = 0;
@@ -199,7 +219,7 @@ pub fn main() anyerror!void {
 fn makeBabies(
     rng: *std.rand.Random,
     src: []const u8,
-    program_set: []std.ArrayList(u8),
+    program_set: []Prg,
     next_generation_index: *usize,
     babies_per_program: usize,
     mutation_chance: f32,
@@ -207,8 +227,8 @@ fn makeBabies(
     var baby: usize = 0;
     while (baby < babies_per_program) : (baby += 1) {
         // how is babby formed?
-        const baby_src = &program_set[next_generation_index.*];
-        baby_src.shrink(0);
+        const baby_prg = &program_set[next_generation_index.*];
+        baby_prg.len = 0;
         for (src) |byte, byte_index| {
             // mutate?
             const rand_float = rng.float(f32);
@@ -217,12 +237,12 @@ fn makeBabies(
                 switch (rng.uintLessThanBiased(u8, 3)) {
                     0 => {
                         // change a byte randomly
-                        baby_src.append(randBfByte(rng)) catch unreachable;
+                        baby_prg.append(randBfByte(rng));
                     },
                     1 => {
                         // insert a random byte
-                        baby_src.append(randBfByte(rng)) catch unreachable;
-                        baby_src.append(byte) catch unreachable;
+                        baby_prg.append(randBfByte(rng));
+                        baby_prg.append(byte);
                     },
                     2 => {
                         // don't copy this byte
@@ -231,11 +251,11 @@ fn makeBabies(
                 }
             } else {
                 // copy gene (byte) to program. no errors
-                baby_src.append(byte) catch unreachable;
+                baby_prg.append(byte);
             }
         }
 
-        std.debug.warn("Generated new code for program {}:\n{}\n", .{ next_generation_index.*, baby_src.span() });
+        //std.debug.warn("Generated new code for program {}:\n{}\n", .{ next_generation_index.*, baby_prg.span() });
 
         next_generation_index.* += 1;
     }
@@ -280,54 +300,45 @@ fn BrainFuckInterpreter(
         cycle_count: usize,
         program: []const u8,
         max_cycles: usize,
-        matching_bracket: std.AutoHashMap(usize, usize),
+        matching_bracket: [Prg.max_bytes]usize,
 
         const tape_size = 32 * 1024;
 
         const Self = @This();
 
-        pub fn init(allocator: *mem.Allocator) Self {
-            return .{
-                .tape = undefined,
-                .tape_head = undefined,
-                .matching_bracket = std.AutoHashMap(usize, usize).init(allocator),
-                .pc = undefined,
-                .cycle_count = undefined,
-                .program = undefined,
-                .max_cycles = undefined,
+        pub fn reset(self: *Self, program_bytes: []const u8, max_cycles: usize) void {
+            self.* = .{
+                .tape = [1]u8{0} ** tape_size,
+                .tape_head = 0,
+                .matching_bracket = undefined,
+                .pc = 0,
+                .cycle_count = 0,
+                .program = program_bytes,
+                .max_cycles = max_cycles,
             };
-        }
-
-        pub fn reset(self: *Self, program_bytes: []const u8, max_cycles: usize) !void {
-            self.tape = [1]u8{0} ** tape_size;
-            self.tape_head = 0;
-            self.matching_bracket.clear();
-            self.pc = 0;
-            self.cycle_count = 0;
-            self.program = program_bytes;
-            self.max_cycles = max_cycles;
 
             // parse for matching brackets
-            var stack = std.ArrayList(usize).init(self.matching_bracket.allocator);
-            defer stack.deinit();
+            for (program_bytes) |_, i| {
+                // default: no control flow modification
+                self.matching_bracket[i] = i;
+            }
+            var stack: [Prg.max_bytes]usize = undefined;
+            var stack_index: usize = 0;
             for (program_bytes) |byte, i| {
                 switch (byte) {
-                    '[' => try stack.append(i),
-                    ']' => if (stack.popOrNull()) |begin_index| {
-                        try self.matching_bracket.putNoClobber(i, begin_index);
-                        try self.matching_bracket.putNoClobber(begin_index, i);
-                    } else {
-                        // just send control forward; ignore this close bracket
-                        try self.matching_bracket.putNoClobber(i, i + 1);
+                    '[' => {
+                        stack[stack_index] = i;
+                        stack_index += 1;
+                    },
+                    ']' => if (stack_index != 0) {
+                        stack_index -= 1;
+                        const begin_index = stack[stack_index];
+                        self.matching_bracket[i] = begin_index;
+                        self.matching_bracket[begin_index] = i;
                     },
                     else => continue,
                 }
             }
-        }
-
-        pub fn deinit(self: *Self) void {
-            self.matching_bracket.deinit();
-            self.* = undefined;
         }
 
         pub fn start(self: *Self, context: Context) void {
@@ -345,12 +356,10 @@ fn BrainFuckInterpreter(
                     '.' => writeByte(context, self.tape[self.tape_head]),
                     ',' => self.tape[self.tape_head] = readByte(context),
                     '[' => if (self.tape[self.tape_head] == 0) {
-                        if (self.matching_bracket.getValue(self.pc)) |i| {
-                            self.pc = i;
-                        }
+                        self.pc = self.matching_bracket[self.pc];
                     },
-                    ']' => {
-                        self.pc = self.matching_bracket.getValue(self.pc).?;
+                    ']' => if (self.matching_bracket[self.pc] != self.pc) {
+                        self.pc = self.matching_bracket[self.pc];
                         self.cycle_count += 1;
                         continue;
                     },
@@ -407,9 +416,8 @@ fn testBF(src: []const u8, input: []const u8, expected_output: []const u8) !void
     };
     defer context.output.deinit();
 
-    var bf = BrainFuckInterpreter(*Context, Context.testStdIn, Context.testStdOut).init(std.testing.allocator);
-    try bf.reset(src, std.math.maxInt(usize));
-    defer bf.deinit();
+    var bf: BrainFuckInterpreter(*Context, Context.testStdIn, Context.testStdOut) = undefined;
+    bf.reset(src, std.math.maxInt(usize));
 
     bf.start(&context);
 
@@ -423,7 +431,9 @@ fn assignOutputScore(goal: []const u8, actual: []const u8, cycle_usage: f32, pro
     var char_count = @intToFloat(f32, goal.len);
     var i: usize = 0;
     while (i < goal.len and i < actual.len) : (i += 1) {
-        const ascii_diff = @intToFloat(f32, goal[i]) - @intToFloat(f32, actual[i]);
+        const goal_float_char = @intToFloat(f32, @bitCast(i8, goal[i]));
+        const actual_float_char = @intToFloat(f32, @bitCast(i8, actual[i]));
+        const ascii_diff = std.math.fabs(goal_float_char - actual_float_char);
         const delta = (1.0 - ascii_diff / 255.0) * (1.0 / char_count);
         //stdout_ << "character " << i << " off by " << ascii_diff << ", adding " << delta << "to score";
         score += delta;
@@ -453,4 +463,12 @@ fn assignOutputScore(goal: []const u8, actual: []const u8, cycle_usage: f32, pro
         score = 1.0;
     }
     return score;
+}
+
+test "assign output score" {
+    const goal = "Hello, World!\n";
+    const actual = "\x0034!2OOabcdggiii";
+    const cycle_usage = 0.167500004;
+    const program_size = 376;
+    const result = assignOutputScore(goal, actual, cycle_usage, program_size);
 }
