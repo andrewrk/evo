@@ -288,6 +288,20 @@ fn errorUsage(comptime fmt: []const u8, args: var) anyerror!void {
     return error.InvalidCommandLineArgument;
 }
 
+fn EvoVirtualMachine(
+    comptime Context: type,
+    comptime readByte: fn (context: Context) u8,
+    comptime writeByte: fn (context: Context, byte: u8) void,
+) type {
+    return struct {
+        tape: [tape_size]i32,
+        pc: usize,
+        cycle_count: usize,
+
+        const tape_size = 32 * 1024;
+    };
+}
+
 fn BrainFuckInterpreter(
     comptime Context: type,
     comptime readByte: fn (context: Context) u8,
