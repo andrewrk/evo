@@ -297,8 +297,43 @@ fn EvoVirtualMachine(
         tape: [tape_size]i32,
         pc: usize,
         cycle_count: usize,
+        max_cycles: usize,
 
         const tape_size = 32 * 1024;
+        const Self = @This();
+
+        const OpCode = enum {
+            NoOp = 0,
+            Out = 1,
+        };
+
+        pub fn reset(self: *Self, program_code: []const i32, max_cycles: usize) void {
+            self.* = .{
+                .tape = undefined,
+                .pc = 0,
+                .cycle_count = 0,
+                .max_cycles = max_cycles,
+            };
+            mem.copy(i32, &self.tape, program_code);
+            mem.set(i32, self.tape[program_code.len..], 0);
+        }
+
+        pub fn start(self: *Self, context: Context) void {
+            while (self.pc < self.tape.len and self.cycle_count < self.max_cycles) {
+                const unsigned = @bitCast(u32, self.tape[self.pc]);
+                const op_code_oob = @truncate(u8, unsigned);
+                const op_code = op_code_oob % @typeInfo(OpCode).Enum.fields.len;
+                switch (@intToEnum(OpCode, op_code)) {
+                    .NoOp => {},
+                    .Out => {
+                        // TODO
+                    },
+                }
+
+                self.pc += 1;
+                self.cycle_count += 1;
+            }
+        }
     };
 }
 
