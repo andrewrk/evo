@@ -13,12 +13,21 @@ I never did a blog writeup for this, so I'm rebooting it in Zig.
  * [x] Invent Evo language minimal viable specification.
  * [ ] Implement an Evo interpreter.
  * [ ] Test to find out how effective it is.
+ * [ ] Come up with a set of problems.
+ * [ ] Write a test harness that uses a genetic algorithm using the Evo language
+       as the DNA and tries solving the whole set of problems, and reports a score
+       for the language.
+ * [ ] Iterate on the Evo language specification and try to get better results
+       on the problem set.
+ * [ ] Write a meta test harness that evolves the Evo specification with Evo
+       iteratively
+
 
 ## Building and Running
 
 ```
 zig build
-./zig-cache/bin/evo
+./zig-out/bin/evo
 ```
 
 ## Evo Virtual Machine Specification

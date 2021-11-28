@@ -37,7 +37,7 @@ pub fn main() anyerror!void {
             arg_i += 1;
             seed_str = args[arg_i];
         } else if (positional) |p| {
-            return errorUsage("unexpected parameter: {}\n", .{p});
+            return errorUsage("unexpected parameter: {s}\n", .{p});
         } else {
             positional = arg;
         }
@@ -47,12 +47,12 @@ pub fn main() anyerror!void {
         break :blk try std.fmt.parseInt(u64, s, 10);
     } else blk: {
         var seed_bytes: [@sizeOf(u64)]u8 = undefined;
-        try std.crypto.randomBytes(&seed_bytes);
+        std.crypto.random.bytes(&seed_bytes);
         break :blk std.mem.readIntNative(u64, &seed_bytes);
     };
 
     var default_prng = std.rand.DefaultPrng.init(seed);
-    const rng = &default_prng.random;
+    const rng = default_prng.random();
 
     const goal = opt_goal orelse {
         // just run the program that was passed in
@@ -91,7 +91,7 @@ pub fn main() anyerror!void {
         while (i < generation_size) : (i += 1) {
             program_set_a[i].len = init_program_size;
             generateRandomProgram(program_set_a[i].span(), rng);
-            std.debug.warn("generated random bf program {}:\n{}\n", .{ i, program_set_a[i].span() });
+            std.debug.print("generated random bf program {d}:\n{s}\n", .{ i, program_set_a[i].span() });
         }
     }
     var program_set = &program_set_a;
@@ -106,6 +106,7 @@ pub fn main() anyerror!void {
 
     const S = struct {
         fn inFn(list: *std.ArrayList(u8)) u8 {
+            _ = list;
             return 0;
         }
         fn outFn(list: *std.ArrayList(u8), byte: u8) void {
@@ -122,7 +123,8 @@ pub fn main() anyerror!void {
 
         const Score = @This();
 
-        fn greaterThanOrEql(a: Score, b: Score) bool {
+        fn greaterThanOrEql(context: void, a: Score, b: Score) bool {
+            _ = context;
             return a.scalar >= b.scalar;
         }
     };
@@ -131,27 +133,27 @@ pub fn main() anyerror!void {
     var generation_count: usize = 0;
     while (generation_count < generation_limit) {
         generation_count += 1;
-        //std.debug.warn("Generation {}\n", .{generation_count});
+        //std.debug.print("Generation {}\n", .{generation_count});
         var generation_score: f32 = 0;
         var generation_max_score: f32 = 0;
         var generation_program_size: usize = 0;
 
-        program_scores.shrink(0);
+        program_scores.clearRetainingCapacity();
 
         // evaluate the set of programs and give a score to each
-        for (program_set.*) |*this_prg, i| {
+        for (program_set.*) |*this_prg| {
             generation_program_size += this_prg.len;
-            //std.debug.warn("evaluating program {}\n", .{i});
+            //std.debug.print("evaluating program {}\n", .{i});
             interp.reset(this_prg.span(), timeout_cycle_count);
-            bf_out.shrink(0);
+            bf_out.clearRetainingCapacity();
             interp.start(&bf_out);
 
-            //std.debug.warn("cycle count: {}\n", .{interp.cycle_count});
+            //std.debug.print("cycle count: {}\n", .{interp.cycle_count});
 
-            const output = bf_out.toSliceConst();
+            const output = bf_out.items;
             const cycle_usage = @intToFloat(f32, interp.cycle_count) / @intToFloat(f32, timeout_cycle_count);
 
-            //std.debug.warn("output:\n{}\n", .{output});
+            //std.debug.print("output:\n{}\n", .{output});
 
             const score = assignOutputScore(goal_out_bytes, output, cycle_usage, this_prg.len);
             generation_score += score;
@@ -160,36 +162,36 @@ pub fn main() anyerror!void {
             if (score > best_score) {
                 best_score = score;
 
-                best_output.shrink(0);
+                best_output.clearRetainingCapacity();
                 try best_output.appendSlice(output);
 
                 best_src = this_prg.*;
                 best_cycle_count = interp.cycle_count;
 
-                std.debug.warn("new best. cycle_count={} score={}\noutput:\n{}\nsrc:\n{}\n", .{
+                std.debug.print("new best. cycle_count={d} score={d}\noutput:\n{s}\nsrc:\n{s}\n", .{
                     best_cycle_count,
                     score,
-                    best_output.span(),
+                    best_output.items,
                     best_src.span(),
                 });
             }
 
-            //std.debug.warn("output score: {}\n", .{score});
+            //std.debug.print("output score: {}\n", .{score});
             try program_scores.append(.{ .scalar = score, .src = this_prg.span() });
         }
 
         // take a subset of the top scoring programs and breed them to get a new
         // set of programs to evaluate
-        std.sort.sort(Score, program_scores.span(), Score.greaterThanOrEql);
-        //std.debug.warn("program scores:\n", .{});
-        //for (program_scores.span()) |score, i| {
-        //    std.debug.warn("{} = {}\n", .{i, score.scalar});
+        std.sort.sort(Score, program_scores.items, {}, Score.greaterThanOrEql);
+        //std.debug.print("program scores:\n", .{});
+        //for (program_scores.items) |score, i| {
+        //    std.debug.print("{} = {}\n", .{i, score.scalar});
         //}
 
         var survivor_index: usize = 0;
         var next_generation_index: usize = 0;
         while (survivor_index < surviver_count) : (survivor_index += 1) {
-            const src = program_scores.span()[survivor_index].src;
+            const src = program_scores.items[survivor_index].src;
             makeBabies(rng, src, other_program_set.*, &next_generation_index, babies_per_program, mutation_chance);
         }
 
@@ -200,8 +202,8 @@ pub fn main() anyerror!void {
             makeBabies(rng, rand_src, other_program_set.*, &next_generation_index, babies_per_program, mutation_chance);
         }
 
-        std.debug.warn("Best output so far: '{}'\n", .{best_output.span()});
-        std.debug.warn("(S) Generation={} avg_score={} max_score={} avg_prg_size={}\n", .{
+        std.debug.print("Best output so far: '{s}'\n", .{best_output.items});
+        std.debug.print("(S) Generation={d} avg_score={d} max_score={d} avg_prg_size={d}\n", .{
             generation_count,
             generation_score / generation_size,
             generation_max_score,
@@ -217,7 +219,7 @@ pub fn main() anyerror!void {
 }
 
 fn makeBabies(
-    rng: *std.rand.Random,
+    rng: std.rand.Random,
     src: []const u8,
     program_set: []Prg,
     next_generation_index: *usize,
@@ -229,7 +231,7 @@ fn makeBabies(
         // how is babby formed?
         const baby_prg = &program_set[next_generation_index.*];
         baby_prg.len = 0;
-        for (src) |byte, byte_index| {
+        for (src) |byte| {
             // mutate?
             const rand_float = rng.float(f32);
             if (rand_float < mutation_chance) {
@@ -255,36 +257,38 @@ fn makeBabies(
             }
         }
 
-        //std.debug.warn("Generated new code for program {}:\n{}\n", .{ next_generation_index.*, baby_prg.span() });
+        //std.debug.print("Generated new code for program {}:\n{}\n", .{ next_generation_index.*, baby_prg.span() });
 
         next_generation_index.* += 1;
     }
 }
 
-fn randBfByte(rng: *std.rand.Random) u8 {
+fn randBfByte(rng: std.rand.Random) u8 {
     const possible_bytes = [_]u8{ ' ', '>', '<', '+', '-', '.', ',', '[', ']' };
     return possible_bytes[rng.uintLessThanBiased(u8, possible_bytes.len)];
 }
 
-fn generateRandomProgram(program: []u8, rng: *std.rand.Random) void {
+fn generateRandomProgram(program: []u8, rng: std.rand.Random) void {
     for (program) |*byte| {
         byte.* = randBfByte(rng);
     }
 }
 
 fn readStdIn(context: void) u8 {
+    _ = context;
     var buf: [1]u8 = undefined;
-    std.io.getStdIn().readAll(&buf) catch unreachable;
+    _ = std.io.getStdIn().readAll(&buf) catch unreachable;
     return buf[0];
 }
 
 fn writeStdOut(context: void, byte: u8) void {
+    _ = context;
     var buf: [1]u8 = .{byte};
     std.io.getStdOut().writeAll(&buf) catch unreachable;
 }
 
-fn errorUsage(comptime fmt: []const u8, args: var) anyerror!void {
-    std.debug.warn(fmt, args);
+fn errorUsage(comptime fmt: []const u8, args: anytype) anyerror!void {
+    std.debug.print(fmt, args);
     return error.InvalidCommandLineArgument;
 }
 
@@ -293,6 +297,8 @@ fn EvoVirtualMachine(
     comptime readByte: fn (context: Context) u8,
     comptime writeByte: fn (context: Context, byte: u8) void,
 ) type {
+    _ = readByte;
+    _ = writeByte;
     return struct {
         tape: [tape_size]i32,
         pc: usize,
@@ -302,7 +308,7 @@ fn EvoVirtualMachine(
         const tape_size = 32 * 1024;
         const Self = @This();
 
-        const OpCode = enum {
+        const OpCode = enum(u8) {
             NoOp = 0,
             Out = 1,
         };
@@ -319,6 +325,7 @@ fn EvoVirtualMachine(
         }
 
         pub fn start(self: *Self, context: Context) void {
+            _ = context;
             while (self.pc < self.tape.len and self.cycle_count < self.max_cycles) {
                 const unsigned = @bitCast(u32, self.tape[self.pc]);
                 const op_code_oob = @truncate(u8, unsigned);
@@ -520,4 +527,5 @@ test "assign output score" {
     const cycle_usage = 0.167500004;
     const program_size = 376;
     const result = assignOutputScore(goal, actual, cycle_usage, program_size);
+    _ = result;
 }
